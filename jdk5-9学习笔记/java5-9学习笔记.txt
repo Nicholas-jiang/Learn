@@ -1,0 +1,210 @@
+		  
+				  
+jdk5-9特性比较
+
+java8部分
+
+	0.Lambda表达式
+	
+	（1）lambda运算符：  " => ",可以叫他，“转到”或者 “成为”。
+	（2）lambda表达式结构 （指定的输入参数  运算符  lambda主体 ）
+			例如：param -> lambda body
+				  (obj1,obj2)->obj1.getColor().compareTo.(obj2.getColor())
+				  (obj1,obj2)->{
+						System.out.printIn(obj1);
+						System.out.printIn(obj2);
+				  }
+	1.接口差异
+
+		java8之前
+				接口不可以创建构造器,其中方法全为抽象方法 接口的成员变量均用public修饰
+				public?interface?NameOfInterface{
+					//任何类型 final, static 字段?//抽象方法
+				}
+		java8 
+				允许在接口添加非抽象方法,使用defalut关键字即可
+				interface Formula {
+				??? double calculate(int a);
+				??? default double sqrt(int a) {
+				??????? return Math.sqrt(a);
+				??? }
+				}
+		java9
+				可私有接口的方法,默认和静态方法更好的共享接口的私有方法,若私有方法为静态 ，该方法属于这个接口,不为静态则只能被该接口的实例调用
+				interface?InterfaceWithPrivateMethods?{
+				????private?static?String?staticPrivate()?{
+				????????return?"static?private";
+				? ? }
+				????private?String?instancePrivate()?{
+				????????return?"instance?private";
+				????}
+				????default?void?check()?{????
+				????????String?result?=?staticPrivate();
+				????????InterfaceWithPrivateMethods?pvt?=?new?InterfaceWithPrivateMethods()?{
+				????????????//?anonymous?class?匿名类
+				????????};
+				????????result?=?pvt.instancePrivate();
+				????}
+				}
+	2.Lambda 表达式 java中是如何排列字符串的
+
+			Collections.sort(names, (String a, String b) -> {
+			??? return b.compareTo(a);
+			});
+			或者
+			Collections.sort(names, (String a, String b) -> b.compareTo(a));
+			
+	3.函数式接口 “函数式接口”是 指仅仅只包含一个抽象方法的接口，每一个该类型的lambda表达式都会被匹配到这个抽象方法
+	4.允许使用 :: 关键字来 传递方法或者构造函数引用
+
+			converter = something::startsWith;
+			String converted = converter.convert("Java");
+			System.out.println(converted);??? // "J"
+	5.Lambda 作用域
+			直接访问标记了final的外层局部变量，或者实例的字段以及静态变量
+	6.访问局部变量可以直接在lambda表达式中访问外层的局部变量
+			
+			final int num = 1;
+			Converter<Integer, String> stringConverter =
+			??????? (from) -> String.valueOf(from + num);
+			stringConverter.convert(2);???? // 3
+
+	7.访问对象字段与静态变量和本地变量不同的是，lambda内部对于实例的字段以及静态变量是即可读又可写
+			class Lambda4 {
+			??? static int outerStaticNum;
+			??? int outerNum;
+			??? void testScopes() {
+			??????? Converter<Integer, String> stringConverter1 = (from) -> {
+			??????????? outerNum = 23;
+			??????????? return String.valueOf(from);
+			??????? };
+			??????? Converter<Integer, String> stringConverter2 = (from) -> {
+			??????????? outerStaticNum = 72;
+			??????????? return String.valueOf(from);
+			??????? };
+			??? }
+			}
+
+	8.访问接口的默认方法
+		java8之前
+				Comparator或者Runnable接口
+		java8
+				Predicate接口,Function接口,supplier接口
+				Consumer 接口,Comparator接口添加默认的方法,Optional接口,Stream接口,Filter过滤,
+				sort排序,Map映射,Math匹配,Count计数,Reduce规约,并行Streams,Map.putIfAbsent(),
+		
+	9.java.time下包含了一组全新的时间日期API
+		Clock类提供了访问当前日期和时间的方法,
+		Timezones 时区,LocalTime 本地时间,
+		LocalDate 本地日期,LocalDateTime本地日期时间,
+
+	10.Annotation 注解在Java 8中支持多重注解了
+		java8之前
+				老方法
+				@Hints({@Hint("hint1"), @Hint("hint2")})
+				class Person {}
+		java8
+				把同一个类型的注解使用多次，
+				只需要给该注解标注一下@Repeatable即可
+				@interface Hints {
+				??? Hint[] value();
+				}
+				@Repeatable(Hints.class)
+				@interface Hint {
+				??? String value();
+				}
+		
+	
+java9部分	
+	11.引入了jshell这个交互性工具
+					java9引入了jshell这个交互性工具，
+					让Java也可以像脚本语言一样来运行，
+					可以从控制台启动 jshell ，
+					在 jshell 中直接输入表达式并查看其执行结果。
+					当需要测试一个方法的运行效果，
+					或是快速的对表达式进行求值时，jshell 都非常实用。
+					除了表达式之外，还可以创建 Java 类和方法。
+					jshell 也有基本的代码完成功能。
+
+	12.不可变集合工厂方法 增加了List.of()、Set.of()、Map.of()和Map.ofEntries()等工厂方法来创建不可变集合
+					List?strs?=?List.of("Hello",?"World");
+				????List?strs?List.of(1,?2,?3);
+				????Set?strs?=?Set.of("Hello",?"World");
+				????Set?ints?=?Set.of(1,?2,?3);
+				????Map?maps?=?Map.of("Hello",?1,?"World",?2);
+				
+	13.HTML5风格的Java帮助文档
+					Java帮助文档还是由三个框架组成的结构构成，
+					并且以HTML 5输出的Java帮助文档也保持相同的结构。
+					每个 Javadoc 页面都包含有关 JDK 模块类或接口来源的信息。
+				
+	14.多版本兼容 JAR
+					当一个新版本的 Java 出现的时候，
+					你的库用户要花费很长时间才会切换到这个新的版本。
+					这就意味着库要去向后兼容你想要支持的最老的 Java?版本 (许多情况下就是 Java 6 或者 7)。
+					这实际上意味着未来的很长一段时间，
+					你都不能在库中运用 Java 9 所提供的新特性。
+					而多版本兼容 JAR 功能 能让你创建仅在特定版本的 Java 环境中
+					运行库程序时选择使用的 class 版本：
+				
+	15.统一 JVM 日志
+					Java 9 中 ，JVM 有了统一的日志记录系统，
+					可以使用新的命令行选项-Xlog 来控制 JVM 上 所有组件的日志记录。
+					该日志记录系统可以设置输出的日志消息的标签、级别、修饰符和输出目标等。
+					
+	16.java9的垃圾收集机制
+					Java 9 移除了在 Java 8 中 被废弃的垃圾回收器配置组合，
+					同时把G1设为默认的垃圾回收器实现.
+					因为相对于Parallel来说，
+					G1会在应用线程上做更多的事情，
+					而Parallel几乎没有在应用线程上做任何事情，
+					它基本上完全依赖GC线程完成所有的内存管理。这意味着切换到G1将会为应用线程带来额外的工作，从而直接影响到应用的性能.
+
+
+	17.I/O 流新特性
+					java.io.InputStream 中增加了新的方法来读取和复制 InputStream 中包含的数据。
+				????readAllBytes：读取 InputStream 中的所有剩余字节。
+				????readNBytes： 从 InputStream 中读取指定数量的字节到数组中。
+				????transferTo：读取 InputStream 中的全部字节并写入到指定的 OutputStream 中 。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			
