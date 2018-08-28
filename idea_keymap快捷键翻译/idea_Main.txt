@@ -1,0 +1,78 @@
+| 快捷键                          | 原文                                                         | 译文                                               |
+| ------------------------------- | ------------------------------------------------------------ | -------------------------------------------------- |
+| Main Menue --> Refactor         |                                                              |                                                    |
+| Ctrl + Alt + Shift + T          | Main menu \| Refactor \| Refactor This...                    | 弹出重构菜单                                       |
+| Shift + F6                      | Rename                                                       | 重命名                                             |
+| Ctrl + F6                       | Change Signature                                             | 更改签名                                           |
+| Ctrl + Shift + F6               | Main menu \| Refactor \| Type Migration...                   | 类型迁移                                           |
+| F6                              | Move                                                         | 移动                                               |
+| F5                              | Copy                                                         | 复制                                               |
+| Alt+Delete                      | Main menu \| Refactor \| Safe Delete...                      | 安全删除                                           |
+| Ctrl+Alt+N                      | Add Keyboard Shortcut                                        | 内联                                               |
+| Ctrl+Alt+V                      | Extract Variable                                             | 可以引入变量。例如：new String(); 自动导入变量定义 |
+| Ctrl+Alt+C                      | Extract Constant                                             | 常量                                               |
+| Ctrl+Alt+F                      | Extract Field                                                | 类字段                                             |
+| Ctrl+Alt+P                      | Extract Parameter                                            | 参数                                               |
+| Ctrl + Alt + Shift + P          | Main menu \| Refactor \| Extract \| Functional Parameter...  | 函数式参数                                         |
+| Ctrl + Alt + M                  | Method                                                       | 方法                                               |
+| Ctrl + Alt + Shift + M          | Main menu \| Refactor \| Extract \| Function to Scope...     | 作用范围                                           |
+| Ctrl + Alt + Shift + A          | Main menu \| Refactor \| Extract \| Type Alias...            | 类型别名                                           |
+| Main Menue --> Build            |                                                              |                                                    |
+| Ctrl + F9                       | build project                                                | 生成项目                                           |
+| Ctrl + Shift + F9               | rebuild                                                      | 编译                                               |
+| Ctrl + Shift + F10              | run ant target                                               | 运行                                               |
+| Main Menue --> Run              |                                                              |                                                    |
+| Shift + F10/F9                  | Run/Debug                                                    | 选择 Run/debug 运行项目                            |
+| Alt + Shift + F10/F9            | Select configuration and run/and debug                       | 选择配置和运行/调试                                |
+| Ctrl+Alt+F5                     | attach to process                                            | 附于进程                                           |
+| Ctrl + F10                      | apply changes                                                | 更改应用                                           |
+| Ctrl + F2                       | stop                                                         | 停止启动程序                                       |
+| Ctrl + Shift + F2               | stop background process                                      | 停止后台进程                                       |
+| F8/F7                           | Step over/Step into                                          | 步过/步入                                          |
+| Alt + Shift + F8/F7             | force  step over/force  step  into                           | 强制步过/步入                                      |
+| Shift + F8/F7                   | smarty  step over/force  step  into                          | 智能步过/步入                                      |
+| Alt+F9                          | Run to cursor                                                | 运行至光标处                                       |
+| Alt+F10                         | Main menu \| Run \| Show Execution Point                     | 定位到断点                                         |
+| Ctrl+Alt+F9                     | Main menu \| Run \| Force Run to Cursor                      | 强制运行至光标处                                   |
+| Alt+F8                          | Evaluate expression                                          | 计算变量值                                         |
+| Ctrl+Alt+F8   Alt+Button1 Click | Main menu \| Run \| Quick Evaluate Expression                | 快速求值表达式                                     |
+| Ctrl + F8                       | Toggle breakpoint                                            | 切换行断点                                         |
+| Ctrl + Alt + Shift + F8         | Main menu \| Run \| Toggle Temporary Line Breakpoint         | 切换临时行断点                                     |
+| Ctrl + Shift + F8               | Main menu \| Run \| View Breakpoints...                      | 查看断点                                           |
+| Main Menue --> Tools            |                                                              |                                                    |
+| Alt + Shift + T                 | Main menu \| Tools \| Tasks & Contexts \| Switch Task...     | 切换任务                                           |
+| Alt + Shift + N                 | Main menu \| Tools \| Tasks & Contexts \| Open Task...       | 打开任务                                           |
+| Alt + Shift + W                 | Main menu \| Tools \| Tasks & Contexts \| Close Active Task... | 关闭活动任务                                       |
+| Alt + Shift + B                 | Main menu \| Tools \| Tasks & Contexts \| Open in Browser    | 从文件夹中打开文件                                 |
+| Alt + Shift + S                 | Main menu \| Tools \| Tasks & Contexts \| Save Context...    | 保存当前编辑区状态                                 |
+| Alt + Shift + L                 | Main menu \| Tools \| Tasks & Contexts \| Load Context...    | 加载某一保存的编辑区状态                           |
+| Alt + Shift + X                 | Main menu \| Tools \| Tasks & Contexts \| Clear Context      | 清空编辑区状态                                     |
+| Ctrl + Alt + Shift + X          | Main menu \| Tools \| Deployment \| Upload to...             | 上传                                               |
+| Alt+F11                         | Main menu \| Tools \| Run Gulp/Grunt/npm Task                | 运行GULP/GUNT/NPM任务                              |
+| Ctrl+Alt+G                      | Main menu \| Tools \| Mvc.Actions \| Run Command             | 运行命令                                           |
+| Ctrl + Alt + Shift + T          | Main menu \| Tools \| Kotlin \| Copy Current File As Diagnostic Test | 弹出重构菜单                                       |
+| Main Menue --> VCS              |                                                              |                                                    |
+| Alt+'                           | Main menu \| VCS \| VCS Operations Popup...                  | 弹出版本控制操作窗                                 |
+| Ctrl + K                        | Main menu \| VCS \| Commit                                   | 提交代码                                           |
+| Ctrl + T                        | Main menu \| VCS \| Update Project                           | 更新代码                                           |
+| Ctrl + Shift + Alt + D          | Show Changes                                                 | 查看本地修改列表                                   |
+| Ctrl + Shift + K                | Main menu \| VCS \| Mercurial \| Push...                     | 从本地暂存区提交到Remote                           |
+| Ctrl + Alt + A                  | Main menu \| VCS \| Subversion \| Add to VCS                 | 添加版本控制                                       |
+| Ctrl + Alt + Z                  | Main menu \| VCS \| Subversion \| Revert                     | 还原                                               |
+| Ctrl + Alt + E                  | Main menu \| VCS \| Perforce \| Edit                         | 编辑svn信息                                        |
+| Main Menue --> Window           |                                                              |                                                    |
+| Shift + F12                     | Main menu \| Window \| Restore Default Layout                | 还原默认布局                                       |
+| Shift + Esc                     | Hide Active Tool Window                                      | 隐藏激活工具窗                                     |
+| Ctrl + Shift + F12              | Restore Windows                                              | 还原窗口                                           |
+| Ctrl + Shift + F4               | Close Active Tab                                             | 关闭激活的Tab                                      |
+| F12                             | Jump to Last Tool Window                                     | 定位到上一个操作工具窗                             |
+| Ctrl + Shift + 引号             | Maximize Tool Window                                         | 最大化工具窗口                                     |
+| Alt+下箭头                      | Main menu \| Window \| Active Tool Window \| Show List of Tabs | 显示选项卡列表                                     |
+| Ctrl + Shift + 方向键           | Stretch to Left /Right/Top/Bottom                            | 拉伸                                               |
+| Alt + 向右箭头                  | Select Next Tab                                              | 切换到下一个Tab                                    |
+| Alt + 向左箭头                  | Select Previous Tab                                          | 切换到上一个Tab                                    |
+| Ctrl + F4                       | Close                                                        | 关闭当前                                           |
+| Ctrl + Alt + ]                  | Next Project Window                                          | 切换到下一个项目窗口                               |
+| Ctrl + Alt + [                  | Previous Project Window                                      | 切换到前一个项目窗口                               |
+| Main Menue --> Help             |                                                              |                                                    |
+| Ctrl + Shift + A                | Find Action                                                  | 通过描述动作，查找相关命令                         |
