@@ -1,0 +1,677 @@
+spring学习笔记
+1.关于配置文件
+	    server:
+		  port: 8080  #端口 默认是8080
+		  context-path: /jcy #requestMapping一样，首路径拦截
+		
+		spring: #spring数据库配置
+		  datasource:
+			url: jdbc:mysql://127.0.0.1:3306/test
+			driver-class-name: com.mysql.jdbc.Driver
+			username: root
+			password: root
+		  jpa:
+			show-sql: true  #打印sql语句
+			hibernate:
+			  ddl-auto: update
+			  #create 每次启动都新建表
+			  #update 每次判断是否存在，不删除原有数据，最常用
+			  #create-drop 应用停止就删除表
+			  #none没有操作
+		  #validate 验证是否一致，不一致报错
+2.pom文件	
+		提供插件引用
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>mysql</groupId>
+			<artifactId>mysql-connector-java</artifactId>
+		</dependency>
+		
+3.实体类种lombok 插件使用.
+	a.pom文件中加入如下引用。
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+		</dependency>
+	b.实体类中只需加入@Data即可使用get/set方法
+		{
+			在能力云系统中引用方法如下。
+				2.2.1.下载
+					https://projectlombok.org/download
+				2.2.2.执行jar包
+					进入lombok.jar安装路径
+					输入指令 java -jar lombok.jar 
+					这个时候会弹出来一个安装界面，手动选择，找到自己的Eclipse的安装路径，选择 eclipse文件夹，然后安装就好了，如何检查是否安装成功呢，打开Eclipse的安装路径，看看是否有lombok.jar，并且 Eclipse.ini的末尾有：-javaagent:lombok.jar
+				2.2.3.重启eclipse
+		}
+		
+		
+4.使用dpa方式操作数据库
+	public interface OrderDetailRepository extends JpaRepository<OrderDetail, String>{
+
+		List<OrderDetail> findByOrderId(String orderId);
+	}
+	
+5.Service层接口和Impl
+
+	public interface OrderService {
+
+		//创建订单
+		OrderDTO create(OrderDTO orderDTO);
+
+		//查询单个订单详情
+		OrderDTO findOne(String orderId);
+
+		//查询订单总列表(买家用)
+		Page<OrderDTO> findList(String buyerOpenid, Pageable pageable);
+
+		//取消订单
+		OrderDTO cancel(OrderDTO orderDTO);
+
+		//完结订单
+		OrderDTO finish(OrderDTO orderDTO);
+
+		//支付订单
+		OrderDTO paid(OrderDTO orderDTO);
+
+		//查询订单列表(卖家管理系统用的)
+		Page<OrderDTO> findList(Pageable pageable);
+
+	}
+	
+	-------------------------------------------------------------------
+	@Service
+	@Slf4j
+	public class OrderServiceImpl implements OrderService {
+
+		@Autowired
+		private ProductService productService;
+
+		@Autowired
+		private OrderDetailRepository orderDetailRepository;
+
+		@Autowired
+		private OrderMasterRepository orderMasterRepository;
+
+		@Autowired
+		private PayService payService;
+
+		@Autowired
+		private WebSocket webSocket;
+
+		@Override
+		@Transactional//事务管理，一旦失败就回滚
+		public OrderDTO create(OrderDTO orderDTO) {
+			//设置下订单id(是个随机，这里调用了根据时间产生6位随机数的方法)
+			String orderId = KeyUtil.genUniqueKey();
+			//给总价赋值
+			BigDecimal orderAmount = new BigDecimal(BigInteger.ZERO);
+
+			//List<CartDTO> cartDTOList = new ArrayList<>();
+
+			//1.查询商品(数量，价格)
+			for (OrderDetail orderDetail : orderDTO.getOrderDetailList()){
+				ProductInfo productInfo = productService.findOne(orderDetail.getProductId());
+					if(productInfo == null){
+						throw new SellException(ResultEnum.PRODUCT_NOT_EXIST);
+					}
+				//2.计算总价=单价*数量+orderAmount
+				orderAmount = productInfo.getProductPrice()
+						.multiply(new BigDecimal(orderDetail.getProductQuantity()))
+						.add(orderAmount);
+
+				//3.订单详情入库(OrderMaster和orderDetail)
+				//利用BeanUtils方法把前端查找出来的productInfo商品信息复制给订单详情
+				BeanUtils.copyProperties(productInfo, orderDetail);//先复制，再赋值
+				orderDetail.setDetailId(KeyUtil.genUniqueKey());
+				orderDetail.setOrderId(orderId);
+
+				orderDetailRepository.save(orderDetail);
+
+			   /* CartDTO cartDTO = new CartDTO(orderDetail.getProductId(), orderDetail.getProductQuantity());
+				cartDTOList.add(cartDTO);*/
+			}
+
+			//3.订单总表入库(OrderMaster和orderDetail)
+			OrderMaster orderMaster = new OrderMaster();
+			orderDTO.setOrderId(orderId);
+			BeanUtils.copyProperties(orderDTO, orderMaster);
+			orderMaster.setOrderAmount(orderAmount);//是一个整个订单的总价，所以在foe循环之外设置
+			orderMaster.setOrderStatus(OrderStatusEnum.New.getCode());
+			orderMaster.setPayStatus(PayStatusEnum.WAIT.getCode());
+			orderMasterRepository.save(orderMaster);
+
+			//4.扣库存
+			List<CartDTO> cartDTOList = orderDTO.getOrderDetailList().stream().map(e ->
+					new CartDTO(e.getProductId(), e.getProductQuantity())
+			).collect(Collectors.toList());
+			productService.decreaseStock(cartDTOList);
+
+			//发送websocket消息
+			webSocket.sendMessage(orderDTO.getOrderId());
+
+			return orderDTO;
+		}
+		
+		------------------------------------------------------------------------------
+		注意：
+		@Service
+		@Slf4j日志需要
+		@Transactional//事务管理，一旦失败就回滚(主要用在要对数据库进行操作的方法上)
+		然后是一些技巧：善于使用工具类做开发，当需要例如随机数或者特殊字段的时候最好声明在方法开始，方便之后的调用
+		多多关注java的新特性，对代码的优化很有帮助
+		最重要的，写一个方法前先对这个方法的逻辑做个列举，第一步是什么、第二步是什么，再去编写具体的代码
+
+6.Controller部分
+
+		@RestController
+		@RequestMapping("/buyer/order")
+		@Slf4j
+		public class BuyerOrderController {
+
+			@Autowired
+			private OrderService orderService;
+
+			@Autowired
+			private BuyerService buyerService;
+
+			//创建订单
+			@PostMapping(value = "/create")
+			public ResultVO<Map<String, String>> creat(@Valid OrderForm orderForm,
+													   BindingResult bindingResult){
+				if(bindingResult.hasErrors()){
+					log.error("【创建订单】 参数不正确, orderForm={}", orderForm);
+					throw new SellException(ResultEnum.PARAM_ERROR.getCode(),
+							bindingResult.getFieldError().getDefaultMessage());
+				}
+
+				OrderDTO orderDTO = OrderFormZOrderDTOConverter.convert(orderForm);
+				if(CollectionUtils.isEmpty(orderDTO.getOrderDetailList())){
+					log.error("【创建订单】 购物车不能为空");
+					throw new SellException(ResultEnum.CART_EMPTY);
+				}
+				OrderDTO createResult = orderService.create(orderDTO);
+
+				Map<String, String> map = new HashMap<>();
+				map.put("orderId", createResult.getOrderId());
+				return ResultVOUtil.success(map);
+			}
+
+			//订单列表
+			@GetMapping(value = "/list")
+			public ResultVO<List<OrderDTO>> list(@RequestParam("openid") String openid,
+												 @RequestParam(value = "page", defaultValue = "0") Integer page,
+												 @RequestParam(value = "size", defaultValue = "10") Integer size){
+				if(StringUtils.isNullOrEmpty(openid)){
+					log.error("【查询订单列表】 openid为空");
+					throw new SellException(ResultEnum.PARAM_ERROR);
+				}
+
+				PageRequest request = new PageRequest(page, size);
+				Page<OrderDTO> orderDTOPage = orderService.findList(openid, request);
+				//只用返回当前页面的数据集合就行了，因为前端传过来的就是第几页和每一页的size(一般都会定好)
+				return ResultVOUtil.success(orderDTOPage.getContent());
+			}
+
+			//订单详情
+			@GetMapping("/detail")
+			public ResultVO<OrderDTO> detail(@RequestParam("openid") String openid,
+											 @RequestParam("orderId") String orderId){
+			   /* //TODO 不安全的做法，改进
+				OrderDTO orderDTO = orderService.findOne(orderId);*/
+			   OrderDTO orderDTO = buyerService.findOrderOne(openid, orderId);
+
+				return ResultVOUtil.success(orderDTO);
+			}
+
+			//取消订单
+			@PostMapping("/cancel")
+			public ResultVO cancel(@RequestParam("openid") String openid,
+								   @RequestParam("orderId") String orderId){
+			   /* //TODO 不安全的做法，改进
+				OrderDTO orderDTO =  orderService.findOne(orderId);
+				orderService.cancle(orderDTO);*/
+				buyerService.cancelOrder(openid, orderId);
+				return ResultVOUtil.success();
+			}
+
+		}
+		------------------------------------------------------------------------------
+		Controller需要注意的问题是：
+		请求方式一定要写清楚Post和Get不要弄错了
+		做好几乎所有的出现null或者错误的if判断去抛出异常
+		返回要用包装类VO去返回
+		
+		
+7.关于Exception、几种包装类、工具类的介绍
+		@Getter
+		public class SellException extends RuntimeException {
+
+			private Integer code;
+
+			public SellException(ResultEnum resultEnum) {
+				//把枚举中自己定义的message传到父类的构造方法里,相当于覆盖message
+				super(resultEnum.getMessage());
+				this.code = resultEnum.getCode();
+			}
+
+			//而这个是需要自己去填写code的新的meg，不一定是枚举中的模糊的说法，可以把具体的错误信息信使出来
+			public SellException(Integer code, String message) {
+				super(message);
+				this.code = code;
+			}
+		}
+		
+		善用工具类，反正只要是能单独拆分出来使代码看上去更优雅的代码都可以单独写出来当做工具类
+
+		
+8.分布式
+		什么是分布式系统：
+			旨在支持应用程序和服务的开发，可以利用物理架构
+			由多个自治的处理元素，不共享主内存，但通过网络发送消息合作。
+										  --Leslie Lamport
+										  
+										  
+		多节点	：	 分布式系统			
+		消息通信 ：  集群	
+		不共享内存 ：分布式计算
+		
+9.Session
+
+	广义的session：会话控制，不是普通的Http的Session
+	可以理解为一种Key-value的机制
+	它的关键点在于怎么设置Key和获取对应的value
+	第一种：SessionId客户端在请求服务端的时候，服务端会在Http的Header里面设置key和value，而客户端的cookie会把这个保存，后续的请求里面会自动的带上
+	第二种：token，我们需要手动在Http的Header或Url里设置token这个字段，服务器获得请求后在从Url或者Header里取出token进行验证，安全要求比较严格的时候需要配合签名一起使用
+	共同点：区局唯一
+	
+	
+10.分布式系统中的session问题
+	当我们使用分布式系统运行时，会有多台服务器，怎么放呢？有两种方式
+	水平扩展：就是在多台服务器上部署一样的程序，就是集群
+	垂直扩展：其实就是拆分服务，不同Url负载均衡到不同的服务器上去
+	然后，当用户进行登录时，第一次可能在A服务器上，第二次可能就跑到B服务器上了，B服务器没有用户的Session，就以为没有登录，IPHash的解决方案还是优缺点不适用，真正的解决方案是什么呢？
+	加一台服务器装上Redis来专门保存用户的session信息，当其他服务器需要session信息的时候都去找他要
+	我们知道常规的登录、登录就是验证信息，存储浏览状态和让浏览状态失效，我们这里使用的第二种：token的方式，自己设置一个token字段，然后手动添加到cookie中，还有失效时间；登出的时候先清除redis的token，之后我们在访问其他页面的时候就可以通过cookie和redis的验证了，但这里似乎没有做关闭浏览器清除session的设置，
+		具体代码实现：
+		@Controller
+		@RequestMapping("/seller")
+		public class SellerUserController {
+
+			@Autowired
+			private SellerService sellerService;
+
+			//redis的service,这里主要用stringredis
+			@Autowired
+			private StringRedisTemplate redisTemplate;
+
+			@Autowired
+			private ProjectUrlConfig projectUrlConfig;
+
+			@RequestMapping("/login")
+			public ModelAndView login(@RequestParam(value = "username", required=false ) String username,
+									  @RequestParam(value = "password", required = false) String password,
+									  HttpServletResponse response,
+							  Map<String, Object> map) {
+				//1. 由于我们这里没有申请微信开放平台，所以就不用扫码登录了
+				if(username == null && password == null){
+					return new ModelAndView("common/login");
+				}
+
+				SellerInfo sellerInfo = sellerService.findSellerInfoByUsername(username);
+				if(sellerInfo == null && !sellerInfo.getPassword().equals(password)) {
+					map.put("msg", ResultEnum.LGOIN_FAIL.getMessage());
+					//map.put("url", "/sell/seller/order/list");
+					return new ModelAndView("common/login", map);
+				}
+				//2. 设置token至redis(用什么UUID设置)
+				String token = UUID.randomUUID().toString();
+				Integer expire = RedisConstant.EXPIRE;//token过期时间
+				//(key:token_ 为开头的格式String.format是格式设置方法, value=这里先设置为username, 过期时间, 时间单位)
+				redisTemplate.opsForValue().set(String.format(RedisConstant.TOKEN_PREFIX, token), username, expire, TimeUnit.SECONDS);
+
+				//3. 设置token至cookie
+				CookieUtil.set(response, CookieConstant.TOKEN, token, expire);
+
+				//这里不是跳转到模板而是地址所以要用redirect,而且跳转最好用绝对地址
+				return new ModelAndView("redirect:" + projectUrlConfig.getSell()  + "/sell/seller/order/list");
+
+			}
+
+			@RequestMapping("/logout")
+			public ModelAndView logout(HttpServletRequest request,
+							   HttpServletResponse response,
+							   Map<String, Object> map) {
+				//1. 从cookie中查询
+				Cookie cookie = CookieUtil.get(request, CookieConstant.TOKEN);
+				if(cookie != null) {
+					//2. 清除redis
+					redisTemplate.opsForValue().getOperations().delete(String.format(RedisConstant.TOKEN_PREFIX, cookie.getValue()));
+
+					//3. 清除cookie
+					CookieUtil.set(response, CookieConstant.TOKEN, null, 0);
+				}
+				map.put("msg", ResultEnum.LOGOUT_SUCCESS.getMessage());
+				map.put("url", "/sell/seller/login");
+				return new ModelAndView("common/success", map);
+			}
+		}
+	---------------------------------------------------------------------------------------------------------------------------------
+	
+11.微信公众号开发-公众号支付
+
+		获取openid
+			根据官方文档，我们可以得到以下步奏：
+
+			第一步：用户同意授权，获取code
+				首先我们需要得到APPID和用户需要跳转的地址returnUrl然后根据这两个信息组成一个新的url进行跳转	
+					protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+						String backUrl = "http://ynfywtq.hk1.mofasuidao.cn/Weixin/callBack";
+						//第一步：用户同意授权，获取code,会重定向到backUrl
+						String url = "https://open.weixin.qq.com/connect/oauth2/authorize?appid="+WeixinUtil.APPID
+								+ "&redirect_uri="+URLEncoder.encode(backUrl)
+								+ "&response_type=code"
+								+ "&scope=snsapi_userinfo"
+								+ "&state=STATE#wechat_redirect";
+						response.sendRedirect(url);
+					}
+					
+				当跳转到这个url后，微信内置的浏览器就会解析这段代码，他会判断你是不是用微信浏览器进行的访问，如果不是就会显示必须用微信客户端登录，如果是客户端并且你的scope=snsapi_userinfo就会弹出一个授权页面让用户授权，授权之后页面将跳转至redirect_uri/?code=CODE&state=STATE
+				如果出现redirect_url参数错误，是因为在微信公众平台没有配置好，一定要把地址写上后，测试能不能访问到那个txt文件
+			第二步：通过code换取网页授权access_token和openid
+				获取code后，请求以下链接获取access_token： https://api.weixin.qq.com/sns/oauth2/access_token?appid=APPID&secret=SECRET&code=CODE&grant_type=authorization_code 
+				通过code换取网页授权access_token
+				
+			第三步：刷新access_token（如果需要）
+			第四步：拉取用户信息(需scope为 snsapi_userinfo)
+				通过access_token和openid拉取用户信息，如果为base请求的url会不同
+				
+				protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+					//接收code
+					String code = request.getParameter("code");
+					//第二步：通过code换取网页授权access_token
+					String url = "https://api.weixin.qq.com/sns/oauth2/access_token?appid="+WeixinUtil.APPID
+							+ "&secret="+WeixinUtil.APPSECRET
+							+ "&code="+ code
+							+ "&grant_type=authorization_code";
+					//它会返回一个json数据包
+					JSONObject jsonObject = WeixinUtil.doGetStr(url);
+					String openid = jsonObject.getString("openid");
+					String token = jsonObject.getString("access_token");
+					//第三步：刷新access_token（如果需要）
+					//第四步：拉取用户信息(需scope为 snsapi_userinfo)
+					String infoUrl = "https://api.weixin.qq.com/sns/userinfo?access_token="+token
+							+ "&openid="+openid
+							+ "&lang=zh_CN";
+					JSONObject userInfo = WeixinUtil.doGetStr(infoUrl);
+					//1、使用微信用户信息直接登录，无需注册和绑定
+					//System.out.println(userInfo);
+					request.setAttribute("info", userInfo);
+					request.getRequestDispatcher("/index1.jsp").forward(request, response);
+					//2、有自己的账号体系就要再数据库事先创建好表单，然后与微信信息进行绑定
+				}
+				
+				
+			---------------------------------------------------------------------------------------------------------------------------------
+			使用第三方SDK来简化完成获取openid解析：
+			这里我们使用的是：
+
+					<!--微信公众号的第三方SDK-->
+					<dependency>
+						<groupId>com.github.binarywang</groupId>
+						<artifactId>weixin-java-mp</artifactId>
+						<version>2.7.0</version>
+					</dependency>
+					
+			首先我们需要配置基本信息：
+					@Data
+					@Component//是一个泛化的概念，仅仅表示一个组件 (Bean) ，可以作用在任何层次。
+					/*（把普通pojo实例化到spring容器中，相当于配置文件中的<bean id="" class=""/>）
+					* 用这个注解注册之后就可以用@Autowired来进行调用了
+					* */
+
+					@ConfigurationProperties(prefix = "wechat")//这是调用配置文件
+					public class WechatAccountConfig {
+
+						private String mpAppId;
+
+						private String mpAppSecret;
+						//商户号
+						private String mchId;
+						//商户秘钥
+						private String mchKey;
+						//商户证书路径
+						private String keyPath;
+						//微信支付异步通知地址
+						private String notifyUrl;
+					}
+					
+			然后把这些信息注册到service里面
+					@Component
+					public class WechatMpConfig {
+
+						@Autowired
+						private WechatAccountConfig accountConfig;
+
+						@Bean
+						public WxMpService wxMpService(){
+							WxMpService wxMpService = new WxMpServiceImpl();
+							wxMpService.setWxMpConfigStorage(wxMpConfigStorage());//这是根据官方文档知道的设置方法，设置了之后wxMpService就有了配置文件
+							return wxMpService;
+						}
+
+						@Bean
+						public WxMpConfigStorage wxMpConfigStorage(){
+							WxMpInMemoryConfigStorage wxMpInMemoryConfigStorage = new WxMpInMemoryConfigStorage();
+							wxMpInMemoryConfigStorage.setAppId(accountConfig.getMpAppId());
+							wxMpInMemoryConfigStorage.setSecret(accountConfig.getMpAppSecret());
+							return wxMpInMemoryConfigStorage;
+						}
+					}
+			然后就是在controller里面写具体的url跳转代码，通过下面两个方法 
+				authorize可以实现普通方法中的第一二步 
+				userInfo可以完成通过code获取token和openid了
+				
+				@Controller
+				@RequestMapping("/wechat")
+				@Slf4j
+				public class WechatController {
+
+					@Autowired
+					private WxMpService wxMpService;
+
+					//这也是点击项目首页后第一个调用的方法，获取openid
+					@GetMapping("/authorize")
+					public String authorize(@RequestParam("returnUrl") String returnUrl){
+						//1.配置
+						//2.调用方法
+						String url = "http://ynfywtq.hk1.mofasuidao.cn/sell/wechat/userInfo";
+						//这里是根据配置的方法去重定向到下面一个方法得到返回值，这里主要是要为了获取code
+						String redirectUrl = wxMpService.oauth2buildAuthorizationUrl(url, WxConsts.OAUTH2_SCOPE_BASE, URLEncoder.encode(returnUrl));
+						//log.info("【微信网页授权】获取code，result={}", redirectUrl);
+						//重定向必须要加"redirect:"拼接，否则要像ssm一样配置好
+						return "redirect:" + redirectUrl;
+					}
+
+					//这里得到code和目标地址，如果不是用微信客户顿打开的话就会重定向到另一个地址，叫你用客户端打开
+					@GetMapping("/userInfo")
+					public String userInfo(@RequestParam("code") String code,
+										 @RequestParam("state") String returnUrl){
+						WxMpOAuth2AccessToken wxMpOAuth2AccessToken = new WxMpOAuth2AccessToken();
+						try {
+							wxMpOAuth2AccessToken = wxMpService.oauth2getAccessToken(code);
+						} catch (WxErrorException e) {
+							log.error("【微信网页授权】{}", e);
+							throw new SellException(ResultEnum.WECHAT_MP_ERROR.getCode(), e.getError().getErrorMsg());
+						}
+						//我们是为了网页支付，而网页支付主要是要openid
+						String openId = wxMpOAuth2AccessToken.getOpenId();
+						return "redirect:" + returnUrl +"?openid=" + openId;
+					}
+				}
+				----------------------------------------------------------------------------------------------------------------------------
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+12.创建订单发起支付
+		由于发起支付首先是需要一个订单的，所以我们要根据需求首先完成创建订单的操作，订单信息里面就会包含用户的openid的信息，之后我们在发起支付就可以通过订单里面openid来进行支付的操作 
+		而支付这里我只用了第三方SDK完成：
+
+		<!--廖老师自己写的支付SDK-->
+				<dependency>
+					<groupId>cn.springboot</groupId>
+					<artifactId>best-pay-sdk</artifactId>
+					<version>1.1.0</version>
+				</dependency>
+
+			开发流程
+
+				第一步：发起支付(是在订单已经被创建好的前提下)
+				第二部：异步判断支付状态
+				传入参数为orderid和returnUrl(支付成功后的回调地址)
+
+				//只需要接受orderid和回调地址
+					@GetMapping("/create")
+					public ModelAndView create(@RequestParam("orderId") String orderId,
+											   @RequestParam("returnUrl") String returnUrl,
+											   Map<String, Object> map) {
+						//1. 根据传过来的orderid查询订单
+						OrderDTO orderDTO = orderService.findOne(orderId);
+						if(orderDTO == null){
+							throw new SellException(ResultEnum.ORDER_NOT_EXIST);
+						}
+
+						//2. 发起支付
+						PayResponse payResponse = payService.create(orderDTO);
+
+						map.put("payResponse", payResponse);
+						map.put("returnUrl", returnUrl);
+						//返回到WeixinJSBridge内置对象在其他浏览器中无效
+						return new ModelAndView("pay/create", map);
+					}
+
+			具体发起操作
+
+				@Override
+				public PayResponse create(OrderDTO orderDTO) {
+					PayRequest payRequest = new PayRequest();
+					//发起支付需要传一些参数
+					payRequest.setOpenid(orderDTO.getBuyerOpenid());//用户openid
+					payRequest.setOrderAmount(orderDTO.getOrderAmount().doubleValue());//订单总金额
+					payRequest.setOrderId(orderDTO.getOrderId());//订单orderid
+					payRequest.setOrderName(ORDER_NAME);//订单名字，自己随便起
+					payRequest.setPayTypeEnum(BestPayTypeEnum.WXPAY_H5);//支付方式
+					log.info("【微信支付】发起支付，request={}", JsonUtil.toJson(payRequest));
+					PayResponse payResponse = bestPayService.pay(payRequest);//根据传参得到预付支付的参数
+					log.info("【微信支付】发起支付生成预付信息，response={}", JsonUtil.toJson(payResponse));
+					return payResponse;
+				}
+
+				2017-08-26 19:35:27.679  INFO 12268 --- [nio-8080-exec-1] com.akk.service.impl.PayServiceImpl      : 【微信支付】发起支付，request={
+				  "payTypeEnum": "WXPAY_H5",
+				  "orderId": "1503747327509255028",
+				  "orderAmount": 0.01,
+				  "orderName": "微信点餐订单",
+				  "openid": "oopqG1kXTv-S_NsiOlwFGjyofJZg"
+				}
+				2017-08-26 19:35:28.298  INFO 12268 --- [nio-8080-exec-1] com.akk.service.impl.PayServiceImpl      : 【微信支付】发起支付生成预付信息，response={
+				  "appId": "wx8b20c44179a091b4",
+				  "timeStamp": "1503747328",
+				  "nonceStr": "5utjFpjTlD5Tjxbn",
+				  "packAge": "prepay_id\u003dwx20170826193526270d20a17b0967136475",
+				  "signType": "MD5",
+				  "paySign": "6C770BCB3057365BF76A56652C8BDBA8"
+				}
+
+		有了预付信息后按照微信官方文档的说法就是 
+		生成JSAPI页面调用的支付参数并签名 
+		而我发现我们这里的步奏似乎和官方的步奏不太一样 
+		官方是 :
+			先同一调用下单API，生成预付单 
+			生成JSAPI页面调用的支付参数并签名 
+			用户点击支付8.微信支付系统验证参数的合法性和授权域权限
+
+		而这里的第三方SDK再用户点击支付后直接产生预付信息在生成JSAPI页面调用的支付参数并签名，就没有了统一下单的调用减少了一层逻辑 
+		否则按照官方的标准，用户操作应该是 
+		下单(产生预付单) 
+		用户确认后点击支付 
+		然后回到 
+		用户输入密码的界面，之后系统会像微信支付系统验证授权 10.再异步通知商户后台支付结果(是否成功)(通过配置的notifyUrl来通知商户系统支付结果，然后商户在做进一步判断，防止中间被黑)
+
+			@Override
+			public PayResponse notify(String notifyData) {
+				//1. 验证签名
+				//2. 支付状态
+				//3. 支付金额
+				//4. 支付人(下单人 == 支付人)比如有代付，有的必须本人支付
+
+				//前两步SDK已经做了
+
+				PayResponse payResponse = bestPayService.asyncNotify(notifyData);
+				log.info("【微信支付】异步通知，payResponse={}", JsonUtil.toJson(payResponse));
+
+				//查询订单
+				OrderDTO orderDTO = orderService.findOne(payResponse.getOrderId());
+				//判断订单是否存在
+				if(orderDTO == null) {
+					log.info("【微信支付】异步通知，订单不存在，orderId={}", payResponse.getOrderId());
+					throw new SellException(ResultEnum.ORDER_NOT_EXIST);
+				}
+				//判断金额是否一致,由于这里两个变量的类型不一致，数据库用的BigDecimal而SDK用的double,所以要做转换
+				//但是转换类型比较还是不行，因为转换后小数点后面会出现奇怪的数字，所以要用相减判断
+				if(!MathUtil.equals(payResponse.getOrderAmount(), orderDTO.getOrderAmount().doubleValue())) {
+					log.info("【微信支付】异步通知，订单金额不一致，orderId={}，微信通知金额={}，系统金额={}",
+							payResponse.getOrderId(),
+							payResponse.getOrderAmount(),
+							orderDTO.getOrderAmount());
+					throw new SellException(ResultEnum.WXPAY_NOTIFY_MONEY_VERIFY_ERROR);
+				}
+				//修改订单支付状态
+				orderService.paid(orderDTO);
+
+				return payResponse;
+			}	
+
+		返回成功结果给微信支付系统 
+		返回支付结果并发消息给用户。完成支付
+
+		基本上按照第三方SDK的操作进行编写就不会出错
+
+13、订单的取消
+		当交易发生之后一段时间内，由于买家或者卖家的原因需要退款时，卖家可以通过退款接口将支付款退还给买家，微信支付将在收到退款请求并且验证成功之后，按照退款规则将支付款按原路退到买家帐号上。 
+		我这里只进行了退款操作，没有写判断的逻辑
+
+					@Override
+					public RefundResponse refund(OrderDTO orderDTO) {
+						RefundRequest refundRequest = new RefundRequest();
+						refundRequest.setOrderId(orderDTO.getOrderId());
+						refundRequest.setOrderAmount(orderDTO.getOrderAmount().doubleValue());
+						refundRequest.setPayTypeEnum(BestPayTypeEnum.WXPAY_H5);
+						log.info("【微信退款】request={}", JsonUtil.toJson(refundRequest));
+
+						RefundResponse refundResponse = bestPayService.refund(refundRequest);
+						log.info("【微信退款】response={}", JsonUtil.toJson(refundResponse));
+
+						return refundResponse;
+					}
+
+		总结：
+		用第三方SDK完成操作的确很简单，但是我们还要能明白其中的详细原理最好，最好的方式是自己先完成一遍不用SDK的普通调，在去用别人的包的时候就不会一头雾水了。 
+		这样在写属于自己特定的逻辑的时候就很清楚该怎样操作了。 
+		比如统一下单和确定支付是否分开写。
